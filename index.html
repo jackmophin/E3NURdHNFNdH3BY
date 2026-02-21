@@ -1,1 +1,705 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>File Viewer + PAK Unpacker</title><style>body{margin:0;font-family:"Courier New",monospace;background:#0e1117;color:#c8d8e8}.fullscreen-picker{display:flex;justify-content:center;align-items:center;height:100vh;cursor:pointer;position:fixed;top:0;left:0;right:0;bottom:0}.picker-div{padding:50px;border-radius:12px;background:#141820;color:#3ddc84;font-size:24px;transition:.2s;pointer-events:none}.picker-div:hover{background:#141820bb;box-shadow:0 0 20px #3ddc8433}.file-manager{display:none;padding:20px;max-width:800px;margin:0 auto}.file-list{background:#141820;border:1px solid #1e2d3d;border-radius:4px;padding:10px;max-height:300px;overflow-y:auto;margin-bottom:10px}.file-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e2d3d}.file-item:last-child{border-bottom:none}.file-name{flex:1;color:#7a9ab0}.file-size{color:#4a6070;margin-right:10px}.download-btn,button{background:0 0;border:1px solid #2a3f56;color:#c8d8e8;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:12px}.download-btn:hover{border-color:#3ddc84;color:#3ddc84}button{font-family:inherit;font-size:16px;padding:12px 20px;border-radius:8px;border:1px solid #3ddc84;color:#3ddc84;margin-top:10px;margin-right:10px}button:hover{background:#3ddc8422}.progress{width:100%;height:4px;background:#1e2d3d;margin:10px 0;display:none}.progress-bar{height:100%;background:#3ddc84;width:0%;transition:width .1s}.warning{color:#ffb347}.error{color:#f55}</style></head><body><div class="fullscreen-picker" id="picker"><div class="picker-div">Select files</div><input type="file" id="fileInput" multiple="" style="display:none"></div><div class="file-manager" id="fileManager"><div class="file-list" id="fileList"></div><div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div><button id="downloadAllBtn">⬇ ZIP</button> <button id="backBtn">↺ New</button></div><script>!function(e){"use strict";const t=new Uint8Array([67,72,78,75,82,1]),n=(()=>{const e=new Uint32Array(256);for(let t=0;t<256;t++){let n=t;for(let e=0;e<8;e++)n=1&n?3988292384^n>>>1:n>>>1;e[t]=n>>>0}return e})();function s(e){let t=4294967295;for(let s=0;s<e.length;s++)t=n[255&(t^e[s])]^t>>>8;return(4294967295^t)>>>0}function a(e,t){return e[t]|e[t+1]<<8}function r(e,t){return(e[t]|e[t+1]<<8|e[t+2]<<16|e[t+3]<<24)>>>0}function o(e,t){const n=r(e,t),s=r(e,t+4);return BigInt(n)+(BigInt(s)<<32n)}function i(e,t,n){e[t]=255&n,e[t+1]=n>>8&255}function c(e,t,n){e[t]=255&n,e[t+1]=n>>8&255,e[t+2]=n>>16&255,e[t+3]=n>>24&255}async function l(e){if("undefined"==typeof DecompressionStream)throw new Error("DecompressionStream not supported");const t=new DecompressionStream("deflate"),n=t.writable.getWriter();n.write(e),n.close();const s=t.readable.getReader(),a=[];for(;;){const{done:e,value:t}=await s.read();if(e)break;a.push(t)}const r=a.reduce((e,t)=>e+t.length,0),o=new Uint8Array(r);let i=0;for(const e of a)o.set(e,i),i+=e.length;return o}async function d(e){if(e.length<8)throw new Error("File too short");let n=!0;for(let s=0;s<t.length;s++)if(e[s]!==t[s]){n=!1;break}if(!n)throw new Error("Invalid magic: not a PPAK file");if(218!==e[7])throw new Error("Not a .pak file");let i=8;const c=a(e,i);i+=2;const d=(new TextDecoder).decode(e.subarray(i,i+c));i+=c;const u=o(e,i);i+=8;const p=r(e,i);i+=4;const f=0!==e[i++],m=0!==e[i++],h=(e[i++],e.length-i-4),y=e.subarray(i,i+h);i+=h;const g=r(e,i);s(e.subarray(0,i))!==g&&console.warn("PAK CRC mismatch");let k=y;m&&(k=await l(y));let w=0;const F=r(k,w);w+=4;const b=[];for(let e=0;e<F;e++){const e=a(k,w);w+=2;const t=(new TextDecoder).decode(k.subarray(w,w+e));w+=e;const n=Number(o(k,w));w+=8,b.push({path:t,size:n})}const B=[];for(let e=0;e<p;e++)B.push(r(k,w)),w+=4;return{archiveName:d,totalRawSize:Number(u),totalChunks:p,chunkCompressed:f,pakCompressed:m,manifest:{version:1,entries:b},rawSizes:B,magicOk:n}}function u(e,n=!1){if(e.length<8)throw new Error("Chunk too short");let s=!0;for(let n=0;n<t.length;n++)if(e[n]!==t[n]){s=!1;break}if(!s&&!n)throw new Error("Invalid magic in chunk");const i=e[7];let c=8;const l=r(e,c);c+=4;const d=r(e,c);c+=4;const u=o(e,c);c+=8;let p=null,f=!1,m=0,h=0,y=0;if(1===i){const t=r(e,c);if(c+=4,t>0){if(1===e[c++]){const n=e.subarray(c,c+t-1);let s=0;const i=r(n,s);s+=4;const l=[];for(let e=0;e<i;e++){const e=a(n,s);s+=2;const t=(new TextDecoder).decode(n.subarray(s,s+e));s+=e;const r=Number(o(n,s));s+=8,l.push({path:t,size:r})}p={version:1,entries:l}}else try{const n=(new TextDecoder).decode(e.subarray(c,c+t-1));p=JSON.parse(n)}catch(e){}c+=t-1}f=0!==e[c++],m=r(e,c),c+=4,h=r(e,c),c+=4,y=c}else{if(2!==i)throw new Error("Unknown chunk type");f=0!==e[c++],m=r(e,c),c+=4,h=r(e,c),c+=4,y=c}return{type:i,chunkIdx:l,totalChunks:d,totalRawSize:Number(u),manifest:p,compressed:f,payloadCrc:m,payloadLen:h,payloadStart:y,magicOk:s}}async function p(e,t){if(0===t.payloadStart)return e.slice();const n=e.subarray(t.payloadStart,t.payloadStart+t.payloadLen);return s(n)!==t.payloadCrc&&console.warn(`CRC mismatch in chunk ${t.chunkIdx}`),t.compressed?await l(n):n}e.Unpacker={parsePak:d,parseP:u,extractPayload:p,unpack:async function(e){const t=e.find(e=>e.name.toLowerCase().endsWith(".pak")),n=e.filter(e=>e.name.toLowerCase().endsWith(".p"));if(0===n.length)return{success:!1,reason:"no_p_files",files:[]};const s=[];for(const e of n)try{const t=u(e.data,!0);s.push({...t,data:e.data,originalName:e.name})}catch(t){s.push({type:null,chunkIdx:-1,totalChunks:-1,manifest:null,compressed:!1,payloadCrc:0,payloadLen:e.data.length,payloadStart:0,data:e.data,originalName:e.name,magicOk:!1})}s.sort((e,t)=>-1===e.chunkIdx?1:-1===t.chunkIdx?-1:e.chunkIdx-t.chunkIdx);let a=null,r=-1,o=!1;if(t)try{const e=await d(t.data);a=e.manifest,r=e.totalChunks,o=e.chunkCompressed}catch(e){console.warn("pak parse failed",e)}if(!a){const e=s.find(e=>0===e.chunkIdx);e&&e.manifest&&(a=e.manifest,r=e.totalChunks,o=e.compressed)}if(!a)return{success:!1,reason:"no_manifest",files:s.map(e=>({name:e.originalName||`chunk_${e.chunkIdx}.bin`,data:e.data}))};const i=s.map(e=>e.chunkIdx).filter(e=>-1!==e),c=[];for(let e=0;e<r;e++)i.includes(e)||c.push(e);if(c.length>0)return{success:!1,reason:"missing_chunks",missing:c,files:s.map(e=>({name:e.originalName||`chunk_${e.chunkIdx}.bin`,data:e.data}))};const l=[];for(const e of s){const t=await p(e.data,e);l.push(t)}const f=l.reduce((e,t)=>e+t.length,0),m=new Uint8Array(f);let h=0;for(const e of l)m.set(e,h),h+=e.length;const y=[];let g=0;for(const e of a.entries){const t=m.subarray(g,g+e.size).slice();g+=e.size,y.push({path:e.path,data:t})}return{success:!0,files:y}},createZip:function(e){const t=new TextEncoder,n=[];let a=0;for(const r of e){const e=t.encode(r.name),o=s(r.data),l=r.data.length,d=new Uint8Array(30+e.length);c(d,0,67324752),i(d,4,20),i(d,6,0),i(d,8,0),i(d,10,0),i(d,12,0),c(d,14,o),c(d,18,l),c(d,22,l),i(d,26,e.length),i(d,28,0),d.set(e,30),n.push({lh:d,data:r.data,nameBytes:e,crc:o,offset:a}),a+=d.length+l}const r=[];let o=0;for(const e of n){const t=new Uint8Array(46+e.nameBytes.length);c(t,0,33639248),i(t,4,20),i(t,6,20),i(t,8,0),i(t,10,0),i(t,12,0),i(t,14,0),c(t,16,e.crc),c(t,20,e.data.length),c(t,24,e.data.length),i(t,28,e.nameBytes.length),i(t,30,0),i(t,32,0),i(t,34,0),i(t,36,0),c(t,38,0),c(t,42,e.offset),t.set(e.nameBytes,46),r.push(t),o+=t.length}const l=new Uint8Array(22);c(l,0,101010256),i(l,4,0),i(l,6,0),i(l,8,n.length),i(l,10,n.length),c(l,12,o),c(l,16,a),i(l,20,0);const d=a+o+l.length,u=new Uint8Array(d);let p=0;for(const e of n)u.set(e.lh,p),p+=e.lh.length,u.set(e.data,p),p+=e.data.length;for(const e of r)u.set(e,p),p+=e.length;return u.set(l,p),u},crc32:s}}(window);const fileInput=document.getElementById("fileInput"),picker=document.getElementById("picker"),fileManager=document.getElementById("fileManager"),fileListDiv=document.getElementById("fileList"),downloadAllBtn=document.getElementById("downloadAllBtn"),backBtn=document.getElementById("backBtn"),progress=document.getElementById("progress"),progressBar=document.getElementById("progressBar");let selectedFiles=[],currentDisplayFiles=[],isUnpackedMode=!1;async function processSelectedFiles(){const e=selectedFiles.some(e=>e.name.toLowerCase().endsWith(".pak")),t=selectedFiles.some(e=>e.name.toLowerCase().endsWith(".p"));if(e||t){progress.style.display="block",progressBar.style.width="30%";try{const e=await Unpacker.unpack(selectedFiles);progressBar.style.width="100%",setTimeout(()=>progress.style.display="none",500),e.success?(currentDisplayFiles=e.files.map(e=>({name:e.path,data:e.data,size:e.data.length})),isUnpackedMode=!0,renderFileList(!0)):"no_manifest"===e.reason?(currentDisplayFiles=e.files,isUnpackedMode=!0,renderFileList(!0,"⚠️ Манифест не найден, показаны сырые чанки")):"missing_chunks"===e.reason?(currentDisplayFiles=e.files,isUnpackedMode=!0,renderFileList(!0,`❌ Отсутствуют чанки: ${e.missing.join(", ")}`)):(currentDisplayFiles=selectedFiles.map(e=>({name:e.name,data:e.data,size:e.data.length})),isUnpackedMode=!1,renderFileList(!1))}catch(e){progress.style.display="none",currentDisplayFiles=selectedFiles.map(e=>({name:e.name,data:e.data,size:e.data.length})),isUnpackedMode=!1,renderFileList(!1,`Ошибка распаковки: ${e.message}`),console.error(e)}}else currentDisplayFiles=selectedFiles.map(e=>({name:e.name,data:e.data,size:e.data.length})),isUnpackedMode=!1,renderFileList(!1)}function renderFileList(e,t=""){if(0===currentDisplayFiles.length)return void(fileListDiv.innerHTML="<div>No files</div>");let n="";t&&(n+=`<div class="warning">${t}</div>`),currentDisplayFiles.forEach((e,t)=>{const s=e.name,a=e.size||e.data.length;n+=`<div class="file-item">\n            <span class="file-name">${s}</span>\n            <span class="file-size">${formatSize(a)}</span>\n            <button class="download-btn" onclick="downloadSingle(${t})">⬇</button>\n        </div>`}),fileListDiv.innerHTML=n}function formatSize(e){return e<1024?e+" B":e<1048576?(e/1024).toFixed(1)+" KB":(e/1048576).toFixed(2)+" MB"}picker.addEventListener("click",()=>fileInput.click()),fileInput.addEventListener("change",async e=>{const t=Array.from(e.target.files);selectedFiles=[];for(const e of t){const t=new Uint8Array(await e.arrayBuffer());selectedFiles.push({name:e.name,data:t})}picker.style.display="none",fileManager.style.display="block",await processSelectedFiles()}),window.downloadSingle=function(e){const t=currentDisplayFiles[e];if(!t)return;const n=new Blob([t.data]),s=URL.createObjectURL(n),a=document.createElement("a");a.href=s,a.download=t.name.split("/").pop(),a.click(),setTimeout(()=>URL.revokeObjectURL(s),1e3)},downloadAllBtn.onclick=()=>{if(0===currentDisplayFiles.length)return;const e=Unpacker.createZip(currentDisplayFiles.map(e=>({name:e.name,data:e.data}))),t=new Blob([e]),n=URL.createObjectURL(t),s=document.createElement("a");s.href=n,s.download=isUnpackedMode?"reconstructed.zip":"files.zip",s.click(),setTimeout(()=>URL.revokeObjectURL(n),1e3)},backBtn.onclick=()=>{fileManager.style.display="none",picker.style.display="flex",selectedFiles=[],currentDisplayFiles=[],fileInput.value="",progress.style.display="none"}</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Viewer + PAK Unpacker</title>
+<style>
+body { margin:0; font-family: 'Courier New', monospace; background:#0e1117; color:#c8d8e8; }
+.fullscreen-picker {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    cursor: pointer;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+.picker-div {
+    padding: 30px 50px;
+    border: 2px solid #3ddc84;
+    border-radius: 12px;
+    background: #141820;
+    color: #3ddc84;
+    font-size: 24px;
+    transition: 0.2s;
+    pointer-events: none;
+}
+.picker-div:hover {
+    background: #141820bb;
+    box-shadow: 0 0 20px #3ddc8433;
+}
+.file-manager {
+    display: none;
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+.file-list {
+    background: #141820;
+    border: 1px solid #1e2d3d;
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid #1e2d3d;
+}
+.file-item:last-child { border-bottom: none; }
+.file-name { flex:1; color:#7a9ab0; }
+.file-size { color:#4a6070; margin-right:10px; }
+.download-btn {
+    background: none;
+    border: 1px solid #2a3f56;
+    color: #c8d8e8;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.download-btn:hover { border-color: #3ddc84; color: #3ddc84; }
+button {
+    font-family: inherit;
+    font-size: 16px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    border: 1px solid #3ddc84;
+    background: transparent;
+    color: #3ddc84;
+    cursor: pointer;
+    margin-top: 10px;
+    margin-right: 10px;
+}
+button:hover { background: #3ddc8422; }
+.progress {
+    width: 100%;
+    height: 4px;
+    background: #1e2d3d;
+    margin: 10px 0;
+    display: none;
+}
+.progress-bar {
+    height: 100%;
+    background: #3ddc84;
+    width: 0%;
+    transition: width 0.1s;
+}
+.warning { color: #ffb347; }
+.error { color: #ff5555; }
+</style>
+</head>
+<body>
+
+<div class="fullscreen-picker" id="picker">
+  <div class="picker-div">📂 Select files</div>
+  <input type="file" id="fileInput" multiple style="display:none;">
+</div>
+
+<div class="file-manager" id="fileManager">
+  <div class="file-list" id="fileList"></div>
+  <div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+  <button id="downloadAllBtn">⬇ Download All as ZIP</button>
+  <button id="backBtn">↺ New Selection</button>
+</div>
+
+<script>
+// ==================== UNPACKER LIBRARY (PAK+P) ====================
+(function(global) {
+    "use strict";
+
+    const MAGIC = new Uint8Array([0x50, 0x50, 0x41, 0x4B, 0x01]); // PPAK\x01
+    const VERSION = 0x01;
+    const TYPE_CHUNK_FULL = 0x01;
+    const TYPE_CHUNK_SLIM = 0x02;
+    const TYPE_PAK = 0xDA;
+
+    const CRC32_TABLE = (() => {
+        const table = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let c = i;
+            for (let k = 0; k < 8; k++) {
+                c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            }
+            table[i] = c >>> 0;
+        }
+        return table;
+    })();
+
+    function crc32(data) {
+        let c = 0xFFFFFFFF;
+        for (let i = 0; i < data.length; i++) {
+            c = CRC32_TABLE[(c ^ data[i]) & 0xFF] ^ (c >>> 8);
+        }
+        return (c ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    function readU16(data, offset) {
+        return data[offset] | (data[offset + 1] << 8);
+    }
+    function readU32(data, offset) {
+        return (data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)) >>> 0;
+    }
+    function readU64(data, offset) {
+        const low = readU32(data, offset);
+        const high = readU32(data, offset + 4);
+        return BigInt(low) + (BigInt(high) << 32n);
+    }
+    function writeU16(arr, off, v) {
+        arr[off] = v & 255;
+        arr[off + 1] = (v >> 8) & 255;
+    }
+    function writeU32(arr, off, v) {
+        arr[off] = v & 255;
+        arr[off + 1] = (v >> 8) & 255;
+        arr[off + 2] = (v >> 16) & 255;
+        arr[off + 3] = (v >> 24) & 255;
+    }
+
+    async function inflate(data) {
+        if (typeof DecompressionStream === 'undefined') {
+            throw new Error('DecompressionStream not supported');
+        }
+        const ds = new DecompressionStream('deflate');
+        const writer = ds.writable.getWriter();
+        writer.write(data);
+        writer.close();
+        const reader = ds.readable.getReader();
+        const chunks = [];
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+        }
+        const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const result = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return result;
+    }
+
+    async function parsePak(data) {
+        if (data.length < 8) throw new Error('File too short');
+        let magicOk = true;
+        for (let i = 0; i < MAGIC.length; i++) {
+            if (data[i] !== MAGIC[i]) { magicOk = false; break; }
+        }
+        if (!magicOk) throw new Error('Invalid magic: not a PPAK file');
+
+        const type = data[7];
+        if (type !== TYPE_PAK) throw new Error('Not a .pak file');
+
+        let p = 8;
+        const nameLen = readU16(data, p); p += 2;
+        const archiveName = new TextDecoder().decode(data.subarray(p, p + nameLen)); p += nameLen;
+        const totalRawSize = readU64(data, p); p += 8;
+        const totalChunks = readU32(data, p); p += 4;
+        const chunkCompressed = data[p++] !== 0;
+        const pakCompressed = data[p++] !== 0;
+        const manifestFmt = data[p++];
+
+        const blockLen = data.length - p - 4;
+        const block = data.subarray(p, p + blockLen);
+        p += blockLen;
+        const storedCrc = readU32(data, p);
+        const computedCrc = crc32(data.subarray(0, p));
+        if (computedCrc !== storedCrc) console.warn('PAK CRC mismatch');
+
+        let rawBlock = block;
+        if (pakCompressed) rawBlock = await inflate(block);
+
+        let rp = 0;
+        const fileCount = readU32(rawBlock, rp); rp += 4;
+        const entries = [];
+        for (let i = 0; i < fileCount; i++) {
+            const pathLen = readU16(rawBlock, rp); rp += 2;
+            const path = new TextDecoder().decode(rawBlock.subarray(rp, rp + pathLen)); rp += pathLen;
+            const size = Number(readU64(rawBlock, rp)); rp += 8;
+            entries.push({ path, size });
+        }
+        const rawSizes = [];
+        for (let i = 0; i < totalChunks; i++) {
+            rawSizes.push(readU32(rawBlock, rp)); rp += 4;
+        }
+
+        return {
+            archiveName,
+            totalRawSize: Number(totalRawSize),
+            totalChunks,
+            chunkCompressed,
+            pakCompressed,
+            manifest: { version: 1, entries },
+            rawSizes,
+            magicOk
+        };
+    }
+
+    function parseP(data, tolerateBadMagic = false) {
+        if (data.length < 8) throw new Error('Chunk too short');
+        let magicOk = true;
+        for (let i = 0; i < MAGIC.length; i++) {
+            if (data[i] !== MAGIC[i]) { magicOk = false; break; }
+        }
+        if (!magicOk && !tolerateBadMagic) throw new Error('Invalid magic in chunk');
+
+        const type = data[7];
+        let p = 8;
+        const chunkIdx = readU32(data, p); p += 4;
+        const totalChunks = readU32(data, p); p += 4;
+        const totalRawSize = readU64(data, p); p += 8;
+
+        let manifest = null;
+        let compressed = false;
+        let payloadCrc = 0;
+        let payloadLen = 0;
+        let payloadStart = 0;
+
+        if (type === TYPE_CHUNK_FULL) {
+            const manifestLen = readU32(data, p); p += 4;
+            if (manifestLen > 0) {
+                const manifestFmt = data[p++];
+                if (manifestFmt === 0x01) {
+                    const rawManifest = data.subarray(p, p + manifestLen - 1);
+                    let mp = 0;
+                    const fileCount = readU32(rawManifest, mp); mp += 4;
+                    const entries = [];
+                    for (let i = 0; i < fileCount; i++) {
+                        const pathLen = readU16(rawManifest, mp); mp += 2;
+                        const path = new TextDecoder().decode(rawManifest.subarray(mp, mp + pathLen)); mp += pathLen;
+                        const size = Number(readU64(rawManifest, mp)); mp += 8;
+                        entries.push({ path, size });
+                    }
+                    manifest = { version: 1, entries };
+                } else {
+                    try {
+                        const jsonStr = new TextDecoder().decode(data.subarray(p, p + manifestLen - 1));
+                        manifest = JSON.parse(jsonStr);
+                    } catch (e) {}
+                }
+                p += (manifestLen - 1);
+            }
+            compressed = data[p++] !== 0;
+            payloadCrc = readU32(data, p); p += 4;
+            payloadLen = readU32(data, p); p += 4;
+            payloadStart = p;
+        } else if (type === TYPE_CHUNK_SLIM) {
+            compressed = data[p++] !== 0;
+            payloadCrc = readU32(data, p); p += 4;
+            payloadLen = readU32(data, p); p += 4;
+            payloadStart = p;
+        } else {
+            throw new Error('Unknown chunk type');
+        }
+
+        return {
+            type,
+            chunkIdx,
+            totalChunks,
+            totalRawSize: Number(totalRawSize),
+            manifest,
+            compressed,
+            payloadCrc,
+            payloadLen,
+            payloadStart,
+            magicOk
+        };
+    }
+
+    async function extractPayload(data, header) {
+        if (header.payloadStart === 0) return data.slice();
+        const raw = data.subarray(header.payloadStart, header.payloadStart + header.payloadLen);
+        const computed = crc32(raw);
+        if (computed !== header.payloadCrc) console.warn(`CRC mismatch in chunk ${header.chunkIdx}`);
+        if (!header.compressed) return raw;
+        return await inflate(raw);
+    }
+
+    function createZip(files) {
+        const encoder = new TextEncoder();
+        const locals = [];
+        let offset = 0;
+        for (const f of files) {
+            const nameBytes = encoder.encode(f.name);
+            const crc = crc32(f.data);
+            const size = f.data.length;
+            const lh = new Uint8Array(30 + nameBytes.length);
+            writeU32(lh, 0, 0x04034B50);
+            writeU16(lh, 4, 20);
+            writeU16(lh, 6, 0);
+            writeU16(lh, 8, 0);
+            writeU16(lh, 10, 0);
+            writeU16(lh, 12, 0);
+            writeU32(lh, 14, crc);
+            writeU32(lh, 18, size);
+            writeU32(lh, 22, size);
+            writeU16(lh, 26, nameBytes.length);
+            writeU16(lh, 28, 0);
+            lh.set(nameBytes, 30);
+            locals.push({ lh, data: f.data, nameBytes, crc, offset });
+            offset += lh.length + size;
+        }
+
+        const cds = [];
+        let cdSize = 0;
+        for (const f of locals) {
+            const cd = new Uint8Array(46 + f.nameBytes.length);
+            writeU32(cd, 0, 0x02014B50);
+            writeU16(cd, 4, 20);
+            writeU16(cd, 6, 20);
+            writeU16(cd, 8, 0);
+            writeU16(cd, 10, 0);
+            writeU16(cd, 12, 0);
+            writeU16(cd, 14, 0);
+            writeU32(cd, 16, f.crc);
+            writeU32(cd, 20, f.data.length);
+            writeU32(cd, 24, f.data.length);
+            writeU16(cd, 28, f.nameBytes.length);
+            writeU16(cd, 30, 0);
+            writeU16(cd, 32, 0);
+            writeU16(cd, 34, 0);
+            writeU16(cd, 36, 0);
+            writeU32(cd, 38, 0);
+            writeU32(cd, 42, f.offset);
+            cd.set(f.nameBytes, 46);
+            cds.push(cd);
+            cdSize += cd.length;
+        }
+
+        const eocd = new Uint8Array(22);
+        writeU32(eocd, 0, 0x06054B50);
+        writeU16(eocd, 4, 0);
+        writeU16(eocd, 6, 0);
+        writeU16(eocd, 8, locals.length);
+        writeU16(eocd, 10, locals.length);
+        writeU32(eocd, 12, cdSize);
+        writeU32(eocd, 16, offset);
+        writeU16(eocd, 20, 0);
+
+        const total = offset + cdSize + eocd.length;
+        const zip = new Uint8Array(total);
+        let pos = 0;
+        for (const f of locals) {
+            zip.set(f.lh, pos); pos += f.lh.length;
+            zip.set(f.data, pos); pos += f.data.length;
+        }
+        for (const cd of cds) { zip.set(cd, pos); pos += cd.length; }
+        zip.set(eocd, pos);
+        return zip;
+    }
+
+    async function unpack(files) {
+        const pakFile = files.find(f => f.name.toLowerCase().endsWith('.pak'));
+        const pFiles = files.filter(f => f.name.toLowerCase().endsWith('.p'));
+
+        if (pFiles.length === 0) {
+            return { success: false, reason: 'no_p_files', files: [] };
+        }
+
+        const parsedChunks = [];
+        for (const f of pFiles) {
+            try {
+                const header = parseP(f.data, true);
+                parsedChunks.push({ ...header, data: f.data, originalName: f.name });
+            } catch (e) {
+                parsedChunks.push({
+                    type: null, chunkIdx: -1, totalChunks: -1, manifest: null,
+                    compressed: false, payloadCrc: 0, payloadLen: f.data.length,
+                    payloadStart: 0, data: f.data, originalName: f.name, magicOk: false
+                });
+            }
+        }
+
+        parsedChunks.sort((a, b) => {
+            if (a.chunkIdx === -1) return 1;
+            if (b.chunkIdx === -1) return -1;
+            return a.chunkIdx - b.chunkIdx;
+        });
+
+        let manifest = null;
+        let totalChunks = -1;
+        let chunkCompressed = false;
+
+        if (pakFile) {
+            try {
+                const pakInfo = await parsePak(pakFile.data);
+                manifest = pakInfo.manifest;
+                totalChunks = pakInfo.totalChunks;
+                chunkCompressed = pakInfo.chunkCompressed;
+            } catch (e) { console.warn('pak parse failed', e); }
+        }
+
+        if (!manifest) {
+            const chunk0 = parsedChunks.find(c => c.chunkIdx === 0);
+            if (chunk0 && chunk0.manifest) {
+                manifest = chunk0.manifest;
+                totalChunks = chunk0.totalChunks;
+                chunkCompressed = chunk0.compressed;
+            }
+        }
+
+        if (!manifest) {
+            return {
+                success: false,
+                reason: 'no_manifest',
+                files: parsedChunks.map(c => ({
+                    name: c.originalName || `chunk_${c.chunkIdx}.bin`,
+                    data: c.data
+                }))
+            };
+        }
+
+        const presentIndices = parsedChunks.map(c => c.chunkIdx).filter(i => i !== -1);
+        const missing = [];
+        for (let i = 0; i < totalChunks; i++) {
+            if (!presentIndices.includes(i)) missing.push(i);
+        }
+
+        if (missing.length > 0) {
+            return {
+                success: false,
+                reason: 'missing_chunks',
+                missing,
+                files: parsedChunks.map(c => ({
+                    name: c.originalName || `chunk_${c.chunkIdx}.bin`,
+                    data: c.data
+                }))
+            };
+        }
+
+        const payloads = [];
+        for (const chunk of parsedChunks) {
+            const pl = await extractPayload(chunk.data, chunk);
+            payloads.push(pl);
+        }
+
+        const totalLen = payloads.reduce((s, p) => s + p.length, 0);
+        const blob = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const p of payloads) { blob.set(p, offset); offset += p.length; }
+
+        const reconstructed = [];
+        let blobOff = 0;
+        for (const entry of manifest.entries) {
+            const data = blob.subarray(blobOff, blobOff + entry.size).slice();
+            blobOff += entry.size;
+            reconstructed.push({ path: entry.path, data });
+        }
+
+        return { success: true, files: reconstructed };
+    }
+
+    global.Unpacker = { parsePak, parseP, extractPayload, unpack, createZip, crc32 };
+})(window);
+// ==================== END OF UNPACKER ====================
+
+// ==================== APPLICATION CODE ====================
+const fileInput = document.getElementById('fileInput');
+const picker = document.getElementById('picker');
+const fileManager = document.getElementById('fileManager');
+const fileListDiv = document.getElementById('fileList');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const backBtn = document.getElementById('backBtn');
+const progress = document.getElementById('progress');
+const progressBar = document.getElementById('progressBar');
+
+let selectedFiles = [];
+let currentDisplayFiles = [];
+let isUnpackedMode = false;
+
+picker.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    selectedFiles = [];
+    for (const file of files) {
+        const data = new Uint8Array(await file.arrayBuffer());
+        selectedFiles.push({ name: file.name, data });
+    }
+    picker.style.display = 'none';
+    fileManager.style.display = 'block';
+    await processSelectedFiles();
+});
+
+async function processSelectedFiles() {
+    const hasPak = selectedFiles.some(f => f.name.toLowerCase().endsWith('.pak'));
+    const hasP = selectedFiles.some(f => f.name.toLowerCase().endsWith('.p'));
+
+    if (hasPak || hasP) {
+        progress.style.display = 'block';
+        progressBar.style.width = '30%';
+        try {
+            const result = await Unpacker.unpack(selectedFiles);
+            progressBar.style.width = '100%';
+            setTimeout(() => progress.style.display = 'none', 500);
+
+            if (result.success) {
+                currentDisplayFiles = result.files.map(f => ({
+                    name: f.path,
+                    data: f.data,
+                    size: f.data.length
+                }));
+                isUnpackedMode = true;
+                renderFileList(true);
+            } else {
+                if (result.reason === 'no_manifest') {
+                    currentDisplayFiles = result.files;
+                    isUnpackedMode = true;
+                    renderFileList(true, '⚠️ Манифест не найден, показаны сырые чанки');
+                } else if (result.reason === 'missing_chunks') {
+                    currentDisplayFiles = result.files;
+                    isUnpackedMode = true;
+                    renderFileList(true, `❌ Отсутствуют чанки: ${result.missing.join(', ')}`);
+                } else {
+                    currentDisplayFiles = selectedFiles.map(f => ({ name: f.name, data: f.data, size: f.data.length }));
+                    isUnpackedMode = false;
+                    renderFileList(false);
+                }
+            }
+        } catch (err) {
+            progress.style.display = 'none';
+            currentDisplayFiles = selectedFiles.map(f => ({ name: f.name, data: f.data, size: f.data.length }));
+            isUnpackedMode = false;
+            renderFileList(false, `Ошибка распаковки: ${err.message}`);
+            console.error(err);
+        }
+    } else {
+        currentDisplayFiles = selectedFiles.map(f => ({ name: f.name, data: f.data, size: f.data.length }));
+        isUnpackedMode = false;
+        renderFileList(false);
+    }
+}
+
+function renderFileList(isUnpacked, warningMsg = '') {
+    // Очищаем контейнер
+    fileListDiv.innerHTML = '';
+    
+    if (warningMsg) {
+        const warnDiv = document.createElement('div');
+        warnDiv.className = 'warning';
+        warnDiv.textContent = warningMsg;
+        fileListDiv.appendChild(warnDiv);
+    }
+    
+    if (currentDisplayFiles.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.textContent = 'No files';
+        fileListDiv.appendChild(emptyDiv);
+        return;
+    }
+
+    currentDisplayFiles.forEach((f, idx) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'file-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'file-name';
+        // Приводим имя к строке безопасно
+        let displayName = f.name;
+        if (typeof displayName !== 'string') {
+            try {
+                displayName = String(displayName);
+            } catch (e) {
+                displayName = 'unnamed';
+            }
+        }
+        nameSpan.textContent = displayName;
+
+        const sizeSpan = document.createElement('span');
+        sizeSpan.className = 'file-size';
+        const size = f.size || (f.data ? f.data.length : 0);
+        sizeSpan.textContent = formatSize(size);
+
+        const btn = document.createElement('button');
+        btn.className = 'download-btn';
+        btn.textContent = '⬇';
+        btn.onclick = () => downloadSingle(idx);
+
+        itemDiv.appendChild(nameSpan);
+        itemDiv.appendChild(sizeSpan);
+        itemDiv.appendChild(btn);
+        fileListDiv.appendChild(itemDiv);
+    });
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+window.downloadSingle = function(index) {
+    const file = currentDisplayFiles[index];
+    if (!file) return;
+    
+    // Преобразуем данные в Uint8Array, если необходимо
+    let data = file.data;
+    if (!(data instanceof Uint8Array)) {
+        if (data instanceof ArrayBuffer) {
+            data = new Uint8Array(data);
+        } else {
+            try {
+                data = new Uint8Array(data);
+            } catch (e) {
+                console.error('Invalid data for download', e);
+                return;
+            }
+        }
+    }
+    
+    const blob = new Blob([data]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name.split('/').pop() || 'file.bin';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+downloadAllBtn.onclick = () => {
+    if (currentDisplayFiles.length === 0) return;
+    
+    // Подготавливаем файлы для ZIP: убеждаемся, что data - Uint8Array
+    const filesForZip = currentDisplayFiles.map(f => {
+        let data = f.data;
+        if (!(data instanceof Uint8Array)) {
+            if (data instanceof ArrayBuffer) {
+                data = new Uint8Array(data);
+            } else {
+                data = new Uint8Array(data);
+            }
+        }
+        return { name: f.name, data };
+    });
+    
+    const zip = Unpacker.createZip(filesForZip);
+    const blob = new Blob([zip]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = isUnpackedMode ? 'reconstructed.zip' : 'files.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+backBtn.onclick = () => {
+    fileManager.style.display = 'none';
+    picker.style.display = 'flex';
+    selectedFiles = [];
+    currentDisplayFiles = [];
+    fileInput.value = '';
+    progress.style.display = 'none';
+};
+</script>
+</body>
+</html>
